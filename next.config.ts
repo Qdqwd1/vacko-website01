@@ -1,7 +1,12 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from "next"
+
+  //Configs here
+
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+  experimental: {
+    viewTransition: true,
+  },
+}
 
-export default nextConfig;
+export default nextConfig
