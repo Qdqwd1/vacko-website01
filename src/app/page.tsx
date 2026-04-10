@@ -371,7 +371,7 @@ export default function Home() {
                 <video
                   ref={workflowVideoMobileRef}
                   className="h-full w-full object-cover"
-                  src="/moobboard-mobile.mp4"
+                  src="/moodboard-mobile.mp4"
                   autoPlay
                   loop
                   muted
