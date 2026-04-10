@@ -12,21 +12,13 @@ const presets: Record<SpeedPreset, { durMs: number; lineStaggerMs: number }> = {
 type TextAnimationProps = {
   text: string
   className?: string
-
-  // Preset (optional)
   speed?: SpeedPreset
-
-  // When to trigger
   threshold?: number
   rootMargin?: string
   startDelayMs?: number
-
-  // Motion (optional overrides; if omitted, preset/defaults are used)
   lineStaggerMs?: number
   durMs?: number
   ease?: string
-
-  
   paragraphGapClassName?: string
 }
 
@@ -37,17 +29,13 @@ type LineItem =
 export default function TextAnimation({
   text = "",
   className = "",
-
   speed = "Title",
-
   threshold = 0.15,
   rootMargin = "0px 0px -10% 0px",
   startDelayMs = 0,
-
   lineStaggerMs,
   durMs,
   ease = "cubic-bezier(.16,1,.3,1)",
-
   paragraphGapClassName = "h-[2svh]",
 }: TextAnimationProps) {
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -55,25 +43,26 @@ export default function TextAnimation({
 
   const [items, setItems] = useState<LineItem[] | null>(null)
   const [reveal, setReveal] = useState(false)
+  // Track when animation is fully done so we can drop will-change
+  const [done, setDone] = useState(false)
 
-  // ✅ keep paragraphs (split on blank lines)
   const paragraphs = useMemo(() => {
     const parts = (text ?? "")
       .split(/\n{2,}/g)
       .map((p) => p.trim())
       .filter(Boolean)
-
-    // if empty text, keep one empty paragraph so layout doesn't explode
     return parts.length ? parts : [""]
   }, [text])
 
-  const paragraphWords = useMemo(() => {
-    return paragraphs.map((p) => (p ? p.split(/\s+/g).filter(Boolean) : []))
-  }, [paragraphs])
+  const paragraphWords = useMemo(
+    () => paragraphs.map((p) => (p ? p.split(/\s+/g).filter(Boolean) : [])),
+    [paragraphs]
+  )
 
   const finalDurMs = durMs ?? presets[speed].durMs
   const finalLineStaggerMs = lineStaggerMs ?? presets[speed].lineStaggerMs
 
+  // IntersectionObserver — trigger reveal once
   useEffect(() => {
     const el = hostRef.current
     if (!el) return
@@ -84,11 +73,7 @@ export default function TextAnimation({
       (entries) => {
         if (!entries[0]?.isIntersecting) return
         if (timeoutId !== null) return
-
-        timeoutId = window.setTimeout(() => {
-          setReveal(true)
-        }, startDelayMs)
-
+        timeoutId = window.setTimeout(() => setReveal(true), startDelayMs)
         observer.disconnect()
       },
       { threshold, rootMargin }
@@ -102,15 +87,22 @@ export default function TextAnimation({
     }
   }, [threshold, rootMargin, startDelayMs])
 
-  // measure real wrapping -> build lines (per paragraph)
+  // Drop will-change after the longest line finishes animating
+  useEffect(() => {
+    if (!reveal || !items) return
+    const lineCount = items.filter((it) => it.kind === "line").length
+    const totalMs = startDelayMs + (lineCount - 1) * finalLineStaggerMs + finalDurMs + 100
+    const id = window.setTimeout(() => setDone(true), totalMs)
+    return () => window.clearTimeout(id)
+  }, [reveal, items, startDelayMs, finalLineStaggerMs, finalDurMs])
+
+  // Measure word wrapping to build lines — debounced ResizeObserver
   useLayoutEffect(() => {
     const el = measureRef.current
     if (!el) return
 
     const compute = () => {
-      const paragraphEls = Array.from(
-        el.querySelectorAll<HTMLDivElement>("[data-paragraph]")
-      )
+      const paragraphEls = Array.from(el.querySelectorAll<HTMLDivElement>("[data-paragraph]"))
       if (!paragraphEls.length) return
 
       const nextItems: LineItem[] = []
@@ -125,13 +117,11 @@ export default function TextAnimation({
 
           spans.forEach((s, i) => {
             const top = s.offsetTop
-
             if (currentTop === null) {
               currentTop = top
               groups.push([words[i]])
               return
             }
-
             if (Math.abs(top - currentTop) > 1) {
               currentTop = top
               groups.push([words[i]])
@@ -146,7 +136,6 @@ export default function TextAnimation({
           })
         }
 
-        // ✅ insert gap between paragraphs (not after last)
         if (pIndex < paragraphEls.length - 1) {
           nextItems.push({ kind: "gap", key: `gap-${pIndex}` })
         }
@@ -157,13 +146,22 @@ export default function TextAnimation({
 
     compute()
 
-    const ro = new ResizeObserver(() => compute())
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [paragraphWords])
+    // Debounce resize — avoid layout thrashing when multiple instances resize together
+    let rafId: number | null = null
+    const ro = new ResizeObserver(() => {
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        compute()
+      })
+    })
 
-  // used for aria + screen readers (original text)
-  const ariaText = text
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      if (rafId !== null) cancelAnimationFrame(rafId)
+    }
+  }, [paragraphWords])
 
   let animatedLineIndex = 0
 
@@ -201,8 +199,8 @@ export default function TextAnimation({
         ))}
       </div>
 
-      {/* Visible animated lines + gaps */}
-      <div className={className} aria-label={ariaText}>
+      {/* Visible animated lines */}
+      <div className={className} aria-label={text}>
         {items?.map((it, i) => {
           if (it.kind === "gap") {
             return <div key={it.key} className={paragraphGapClassName} />
@@ -212,17 +210,13 @@ export default function TextAnimation({
           animatedLineIndex += 1
 
           return (
-            <span
-              key={`${it.text}-${i}`}
-              style={{ display: "block", overflow: "hidden" }}
-            >
+            <span key={`${it.text}-${i}`} style={{ display: "block", overflow: "hidden" }}>
               <span
                 style={{
                   display: "inline-block",
-                  willChange: "transform",
-                  transform: reveal
-                    ? "translate3d(0,0,0)"
-                    : "translate3d(0,110%,0)",
+                  // will-change only while animating — cleared once done to free compositor layers
+                  willChange: done ? "auto" : "transform",
+                  transform: reveal ? "translate3d(0,0,0)" : "translate3d(0,110%,0)",
                   transitionProperty: "transform",
                   transitionDuration: `${finalDurMs}ms`,
                   transitionTimingFunction: ease,

@@ -9,7 +9,6 @@ import InfoBlock from "./infoBlock"
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
 
-
 const blocks = [
   {
     index: "01",
@@ -59,34 +58,34 @@ const blocks = [
 ] as const
 
 export default function Workflow() {
-
   const FADE_VH = 22
 
   useEffect(() => {
+    const section = document.getElementById("workflowProcess")
     const items = Array.from(document.querySelectorAll<HTMLElement>("[data-sticky-item]"))
-    if (!items.length) return
+    if (!items.length || !section) return
 
     let rafId: number | null = null
     let fadePx = (window.innerHeight * FADE_VH) / 100
+    let isVisible = false
 
+    // Use getBoundingClientRect + scrollY for accurate sticky positions
     const computeStarts = () => {
       items.forEach((el) => {
-        el.dataset.start = String(el.offsetTop)
+        el.dataset.start = String(el.getBoundingClientRect().top + window.scrollY)
       })
     }
 
     const update = () => {
+      if (!isVisible) return
       const y = window.scrollY
 
       items.forEach((el, idx) => {
-        const isLast = idx === items.length - 1
-
-        if (isLast) {
+        if (idx === items.length - 1) {
           el.style.setProperty("--shade", "0")
           return
         }
-
-        const start = Number(el.dataset.start || el.offsetTop)
+        const start = Number(el.dataset.start)
         const p = clamp01((y - start) / fadePx)
         el.style.setProperty("--shade", String(p))
       })
@@ -106,6 +105,16 @@ export default function Workflow() {
       scheduleUpdate()
     }
 
+    // Only run scroll logic while section is in viewport
+    const observer = new IntersectionObserver(
+      (entries) => {
+        isVisible = entries[0]?.isIntersecting ?? false
+        if (isVisible) scheduleUpdate()
+      },
+      { threshold: 0 }
+    )
+    observer.observe(section)
+
     computeStarts()
     update()
 
@@ -113,6 +122,7 @@ export default function Workflow() {
     window.addEventListener("resize", onResize)
 
     return () => {
+      observer.disconnect()
       window.removeEventListener("scroll", scheduleUpdate)
       window.removeEventListener("resize", onResize)
       if (rafId !== null) cancelAnimationFrame(rafId)
@@ -132,10 +142,9 @@ export default function Workflow() {
           pageTag="Workflow"
           kicker="Every project follows a clear structure — refined, intentional, and scalable."
           p1="VACKO approaches each project as a system rather than a sequence of isolated tasks. The workflow is designed to create clarity early, reduce unnecessary iteration, and ensure that every decision serves a defined purpose. Structure is established first, allowing complexity to be managed without compromising flexibility."
-          p2="Research, UX thinking, visual systems, motion, and front-end development are treated as interconnected parts of a single process. Rather than working linearly, the workflow adapts to the project’s needs — balancing exploration with precision, and concept with execution — while remaining consistent and transparent from start to finish."
+          p2="Research, UX thinking, visual systems, motion, and front-end development are treated as interconnected parts of a single process. Rather than working linearly, the workflow adapts to the project's needs — balancing exploration with precision, and concept with execution — while remaining consistent and transparent from start to finish."
         />
 
-        {/* Glued stack */}
         <section
           id="workflowProcess"
           className="w-full pt-[clamp(64px,4vw,128px)] pb-[clamp(128px,4vw,256px)]"
@@ -145,27 +154,14 @@ export default function Workflow() {
               key={b.index}
               data-sticky-item
               className="sticky top-0 w-full"
-              style={{
-                zIndex: i + 1,
-              }}
+              style={{ zIndex: i + 1 }}
             >
-              {/* "paper" surface */}
               <div className="relative w-full">
-                {/* base paper background */}
                 <div className="absolute inset-0 bg-[#FFFFFF]" aria-hidden="true" />
-
-                {/* ONLY background gets darker (content unaffected) */}
                 <div
                   aria-hidden="true"
-                  className="
-                        absolute inset-0 pointer-events-none
-                        bg-[#E6E6E6]
-                        opacity-[calc(var(--shade,0)*1)]
-                        transition-opacity duration-2000 ease-out
-                    "
+                  className="absolute inset-0 pointer-events-none bg-[#E6E6E6] opacity-[calc(var(--shade,0)*1)] transition-opacity duration-2000 ease-out"
                 />
-
-                {/* actual content */}
                 <div className="relative">
                   <InfoBlock
                     index={b.index}

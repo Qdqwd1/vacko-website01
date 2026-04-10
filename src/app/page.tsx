@@ -13,8 +13,7 @@ const workflowItems = [
   {
     key: "discovery",
     label: "Discovery",
-    body: `Turning a vague goal into a clear digital direction.
-We define what needs to be built, why it matters, and who it’s for — before any pixels or code exist.`,
+    body: `Turning a vague goal into a clear digital direction. We define what needs to be built, why it matters, and who it's for — before any pixels or code exist.`,
   },
   {
     key: "uxui",
@@ -24,14 +23,12 @@ We define what needs to be built, why it matters, and who it’s for — before 
   {
     key: "frontend",
     label: "Frontend Development",
-    body: `Design translated into fast, responsive, real code.
-Clean front-end architecture with performance, accessibility, and scalability in mind — not just visuals.`,
+    body: `Design translated into fast, responsive, real code. Clean front-end architecture with performance, accessibility, and scalability in mind — not just visuals.`,
   },
   {
     key: "deployment",
     label: "Deployment & Iteration",
-    body: `From local build to live product.
-Setup, optimization, and launch — so the site is stable, secure, and ready to grow.`,
+    body: `From local build to live product. Setup, optimization, and launch — so the site is stable, secure, and ready to grow.`,
   },
 ] as const
 
@@ -54,18 +51,22 @@ const gapPx = (vh: number) => clamp(0.08 * vh, 64, 128)
 export default function Home() {
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowKey>("frontend")
 
-  const activeItem = useMemo(() => {
-    return workflowItems.find((i) => i.key === activeWorkflow) ?? workflowItems[2]
-  }, [activeWorkflow])
+  const activeItem = useMemo(
+    () => workflowItems.find((i) => i.key === activeWorkflow) ?? workflowItems[2],
+    [activeWorkflow]
+  )
 
   const sectionRef = useRef<HTMLElement | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const textWrapRef = useRef<HTMLDivElement | null>(null)
+
+  // Video refs — no src in JSX, assigned lazily
   const videoDesktopRef = useRef<HTMLVideoElement | null>(null)
-  const workflowVideoDesktopRef = useRef<HTMLVideoElement | null>(null)
-  const workflowVideoMobileRef = useRef<HTMLVideoElement | null>(null)
+  const workflowVideoRef = useRef<HTMLVideoElement | null>(null)
+  const mobileHeroVideoRef = useRef<HTMLVideoElement | null>(null)
 
   const rafRef = useRef<number | null>(null)
+  const isScrollSectionVisibleRef = useRef(false)
 
   const [isMobile, setIsMobile] = useState(false)
   const [showText, setShowText] = useState(false)
@@ -81,20 +82,16 @@ export default function Home() {
     viewportRef.current.vh = window.innerHeight
   }
 
+  // Mobile detection
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)")
     const apply = () => setIsMobile(mq.matches)
     apply()
-
-    if (mq.addEventListener) mq.addEventListener("change", apply)
-    else mq.addListener(apply)
-
-    return () => {
-      if (mq.removeEventListener) mq.removeEventListener("change", apply)
-      else mq.removeListener(apply)
-    }
+    mq.addEventListener("change", apply)
+    return () => mq.removeEventListener("change", apply)
   }, [])
 
+  // Show text trigger
   useEffect(() => {
     if (isMobile) {
       if (!showTextRef.current) setShowText(true)
@@ -102,8 +99,7 @@ export default function Home() {
     }
 
     const section = sectionRef.current
-    if (!section) return
-    if (showTextRef.current) return
+    if (!section || showTextRef.current) return
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -116,6 +112,7 @@ export default function Home() {
     return () => observer.disconnect()
   }, [isMobile])
 
+  // Lazy-load + play/pause desktop scroll video
   useEffect(() => {
     if (isMobile) return
 
@@ -123,19 +120,83 @@ export default function Home() {
     const video = videoDesktopRef.current
     if (!section || !video) return
 
+    let srcAssigned = false
+
     const io = new IntersectionObserver(
       (entries) => {
         const inView = entries[0]?.isIntersecting
-        if (inView) video.play().catch(() => {})
-        else video.pause()
+        if (inView) {
+          if (!srcAssigned) {
+            srcAssigned = true
+            video.src = "/HomeVideo-mobile.mp4"
+          }
+          video.play().catch(() => {})
+        } else {
+          video.pause()
+        }
       },
-      { threshold: 0.05 }
+      { threshold: 0.05, rootMargin: "300px" }
     )
 
     io.observe(section)
     return () => io.disconnect()
   }, [isMobile])
 
+  // Lazy-load mobile hero video
+  useEffect(() => {
+    if (!isMobile) return
+
+    const video = mobileHeroVideoRef.current
+    if (!video) return
+
+    let srcAssigned = false
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return
+        if (!srcAssigned) {
+          srcAssigned = true
+          video.src = "/HomeVideo-desktop.mp4"
+          video.play().catch(() => {})
+        }
+        io.disconnect()
+      },
+      { rootMargin: "200px" }
+    )
+
+    io.observe(video)
+    return () => io.disconnect()
+  }, [isMobile])
+
+  // Lazy-load + play/pause workflow video (only one in DOM at a time)
+  useEffect(() => {
+    const video = workflowVideoRef.current
+    if (!video) return
+
+    let srcAssigned = false
+    const src = isMobile ? "/moodboard-mobile.mp4" : "/moobboard-desktop.mp4"
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const inView = entries[0]?.isIntersecting
+        if (inView) {
+          if (!srcAssigned) {
+            srcAssigned = true
+            video.src = src
+          }
+          video.play().catch(() => {})
+        } else {
+          video.pause()
+        }
+      },
+      { threshold: 0.2, rootMargin: "200px" }
+    )
+
+    observer.observe(video)
+    return () => observer.disconnect()
+  }, [isMobile])
+
+  // Scroll animation for the expanding video section
   useEffect(() => {
     if (isMobile) return
 
@@ -145,7 +206,18 @@ export default function Home() {
 
     updateViewport()
 
+    // Visibility guard — skip RAF work when section is off-screen
+    const visibilityObserver = new IntersectionObserver(
+      (entries) => {
+        isScrollSectionVisibleRef.current = entries[0]?.isIntersecting ?? false
+      },
+      { threshold: 0 }
+    )
+    visibilityObserver.observe(section)
+
     const update = () => {
+      if (!isScrollSectionVisibleRef.current) return
+
       const sectionEl = sectionRef.current
       const wrapEl = wrapRef.current
       if (!sectionEl || !wrapEl) return
@@ -161,17 +233,14 @@ export default function Home() {
       t = easeInOut(t)
 
       const w = lerp(START_W_PCT, END_W_PCT, t)
-
       const usable = 100 - 2 * GUTTER_PCT
       const leftStart = GUTTER_PCT + (usable - w)
       const leftEnd = GUTTER_PCT + (usable - w) / 2
       const left = lerp(leftStart, leftEnd, t)
 
       const startTopPx = (START_TOP_SVH / 100) * vh
-
       const widthPx = (w / 100) * vw
       const heightPx = widthPx / ASPECT
-
       const endTopPx = vh - gapPx(vh) - heightPx
       const y = (1 - t) * (startTopPx - endTopPx)
 
@@ -219,38 +288,15 @@ export default function Home() {
 
     window.addEventListener("scroll", onScroll, { passive: true })
     window.addEventListener("resize", onResize)
-
     onScroll()
 
     return () => {
+      visibilityObserver.disconnect()
       window.removeEventListener("scroll", onScroll)
       window.removeEventListener("resize", onResize)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
-  }, [isMobile])
-
-  useEffect(() => {
-    const nodes = [
-      workflowVideoDesktopRef.current,
-      workflowVideoMobileRef.current,
-    ].filter(Boolean) as HTMLVideoElement[]
-
-    if (!nodes.length) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const video = entry.target as HTMLVideoElement
-          if (entry.isIntersecting) video.play().catch(() => {})
-          else video.pause()
-        })
-      },
-      { threshold: 0.2 }
-    )
-
-    nodes.forEach((node) => observer.observe(node))
-    return () => observer.disconnect()
   }, [isMobile])
 
   const toggleWorkflow = (key: WorkflowKey) => {
@@ -291,13 +337,12 @@ export default function Home() {
 
               <div className="mt-[clamp(36px,4svh,64px)] w-full overflow-hidden rounded-[clamp(10px,4vw,20px)] aspect-[1.788]">
                 <video
+                  ref={mobileHeroVideoRef}
                   className="h-full w-full object-cover"
-                  src="/HomeVideo-desktop.mp4"
-                  autoPlay
-                  loop
                   muted
+                  loop
                   playsInline
-                  preload="metadata"
+                  preload="none"
                 />
               </div>
             </div>
@@ -340,12 +385,10 @@ export default function Home() {
                 <video
                   ref={videoDesktopRef}
                   className="h-full w-full object-cover"
-                  src="/HomeVideo-mobile.mp4"
-                  autoPlay
-                  loop
                   muted
+                  loop
                   playsInline
-                  preload="metadata"
+                  preload="none"
                 />
               </div>
             </div>
@@ -359,7 +402,6 @@ export default function Home() {
               <div className="w-full md:w-[40%] leading-[1.2] text-[clamp(36px,4vw,64px)] text-[#1A1C24]">
                 <TextAnimation text="How projects take shape." />
               </div>
-
               <div className="mt-[clamp(24px,4vw,64px)] md:mt-0 text-[clamp(18px,4vw,24px)]">
                 (Workflow)
               </div>
@@ -368,19 +410,19 @@ export default function Home() {
             {/* MOBILE */}
             <div className="mt-[clamp(36px,4vw,64px)] md:hidden">
               <div className="w-full overflow-hidden rounded-[clamp(12px,4vw,16px)] aspect-[1.272]">
-                <video
-                  ref={workflowVideoMobileRef}
-                  className="h-full w-full object-cover"
-                  src="/moodboard-mobile.mp4"
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  preload="metadata"
-                />
+                {isMobile && (
+                  <video
+                    ref={workflowVideoRef}
+                    className="h-full w-full object-cover"
+                    muted
+                    loop
+                    playsInline
+                    preload="none"
+                  />
+                )}
               </div>
 
-              <div className="mt-[clamp(36px,6vw,48px)] ">
+              <div className="mt-[clamp(36px,6vw,48px)]">
                 {workflowItems.map((item, index) => {
                   const isOpen = item.key === activeWorkflow
                   const isLast = index === workflowItems.length - 1
@@ -395,10 +437,9 @@ export default function Home() {
                         onClick={() => toggleWorkflow(item.key)}
                         className="flex w-full items-center justify-between gap-4 py-[clamp(24px,4vw,36px)] text-left"
                       >
-                        <span className="text-[clamp(20px,4vw,24px)]  text-[#1A1C24]">
+                        <span className="text-[clamp(20px,4vw,24px)] text-[#1A1C24]">
                           {item.label}
                         </span>
-
                         <span
                           className={`shrink-0 transition-transform duration-2000 ease-[cubic-bezier(.16,1,.3,1)] ${
                             isOpen ? "rotate-90" : "rotate-0"
@@ -424,10 +465,9 @@ export default function Home() {
                       >
                         <div className="overflow-hidden">
                           <div className="pb-[clamp(24px,4vw,32px)]">
-                            <p className="whitespace-pre-line text-[clamp(16px,4vw,18px)]  text-[#6E7179]">
+                            <p className="whitespace-pre-line text-[clamp(16px,4vw,18px)] text-[#6E7179]">
                               {item.body}
                             </p>
-
                             <div className="pt-[clamp(32px,4vw,36px)] pb-[clamp(48px,4vw,64px)]">
                               <Button text="Read more" link="/workflow" size="small" />
                             </div>
@@ -441,9 +481,9 @@ export default function Home() {
             </div>
 
             {/* DESKTOP */}
-            <div className="hidden md:flex w-full pt-[clamp(36px,4vw,64px)] 2xl:pt-[clamp(64px,4vw,96px)] items-start gap-[clamp(64px,8vw,128px)] 2xl:gap-[15%] ">
+            <div className="hidden md:flex w-full pt-[clamp(36px,4vw,64px)] 2xl:pt-[clamp(64px,4vw,96px)] items-start gap-[clamp(64px,8vw,128px)] 2xl:gap-[15%]">
               <div className="w-[32%]">
-                <div className="w-full ">
+                <div className="w-full">
                   {workflowItems.map((item, index) => {
                     const isOpen = item.key === activeWorkflow
                     const isLast = index === workflowItems.length - 1
@@ -458,10 +498,9 @@ export default function Home() {
                           onClick={() => toggleWorkflow(item.key)}
                           className="flex w-full items-center justify-between text-left h-[clamp(64px,4vw,128px)] 2xl:h-[clamp(96px,4vw,192px)] gap-4"
                         >
-                          <span className="text-[clamp(16px,4vw,20px)] lg:text-[clamp(18px,4vw,22px)] 2xl:text-[clamp(24px,2vw,32px)] ">
+                          <span className="text-[clamp(16px,4vw,20px)] lg:text-[clamp(18px,4vw,22px)] 2xl:text-[clamp(24px,2vw,32px)]">
                             {item.label}
                           </span>
-
                           <span
                             className={`shrink-0 transition-transform duration-2000 ease-[cubic-bezier(.16,1,.3,1)] ${
                               isOpen ? "rotate-90" : "rotate-0"
@@ -490,7 +529,6 @@ export default function Home() {
                               <p className="whitespace-pre-line text-[clamp(16px,4vw,20px)] 2xl:text-[clamp(20px,4vw,24px)] 2xl:w-[80%] text-[#6E7179]">
                                 {item.body}
                               </p>
-
                               <div className="pt-[clamp(24px,4vw,36px)] pb-[clamp(36px,4vw,64px)]">
                                 <Button text="Read more" link="/workflow" size="small" />
                               </div>
@@ -504,17 +542,17 @@ export default function Home() {
               </div>
 
               <div className="flex-1">
-                <div className="relative w-full overflow-hidden 2xl:max-w-360  rounded-[clamp(12px,4vw,16px)] 2xl:rounded-[clamp(22px,4vw,24px)] aspect-[1.272]">
-                  <video
-                    ref={workflowVideoDesktopRef}
-                    className="h-full w-full object-cover"
-                    src="/moobboard-desktop.mp4"
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    preload="metadata"
-                  />
+                <div className="relative w-full overflow-hidden 2xl:max-w-360 rounded-[clamp(12px,4vw,16px)] 2xl:rounded-[clamp(22px,4vw,24px)] aspect-[1.272]">
+                  {!isMobile && (
+                    <video
+                      ref={workflowVideoRef}
+                      className="h-full w-full object-cover"
+                      muted
+                      loop
+                      playsInline
+                      preload="none"
+                    />
+                  )}
                 </div>
               </div>
             </div>
