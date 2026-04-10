@@ -18,7 +18,7 @@ const blocks = [
       "Discovery defines the foundation of the project. It clarifies the problem space, aligns goals, and defines constraints before design or development begins. Scope and success criteria are established early to ensure clarity from the start.",
     paragraphTwo:
       "This stage frames the right questions, surfaces risks, and sets shared direction for what follows.",
-    image: "/01-Discovery.mp4",
+    image: "/01-Discovery-desktop.mp4",
   },
   {
     index: "02",
@@ -27,7 +27,7 @@ const blocks = [
       "UX Architecture translates research into structure. Information hierarchy, user flows, and interaction logic are defined to create a clear and intuitive experience before visual design begins.",
     paragraphTwo:
       "Establishing structure early allows complexity to be managed without compromising usability, resulting in a system that supports both user needs and business goals.",
-    image: "/02-UX.mp4",
+    image: "/02-UX-desktop.mp4",
   },
   {
     index: "03",
@@ -36,7 +36,7 @@ const blocks = [
       "Visual design is approached as a system rather than isolated screens. Typography, layout, spacing, color, and motion principles create consistency across the product, while components are designed to scale and adapt across contexts and devices.",
     paragraphTwo:
       "Every visual decision serves a functional purpose — guiding attention, reinforcing hierarchy, and supporting usability.",
-    image: "/03-Ui.mp4",
+    image: "/03-Ui-desktop.mp4",
   },
   {
     index: "04",
@@ -45,7 +45,7 @@ const blocks = [
       "Front-end development translates design systems into reliable, performant interfaces. Emphasis is placed on clean architecture, responsiveness, accessibility, and maintainability across devices and browsers.",
     paragraphTwo:
       "The goal is not only visual accuracy, but preserving design intent through precise interaction, performance optimization, and technical stability.",
-    image: "/04-Code.mp4",
+    image: "/04-Code-desktop.mp4",
   },
   {
     index: "05",
@@ -54,7 +54,7 @@ const blocks = [
       "Deployment marks the transition to real-world use. Final testing, optimization, and launch preparation ensure reliable performance in production.",
     paragraphTwo:
       "Once live, the system is built to support iteration, refinement, and future scalability without structural compromise.",
-    image: "/05-Deploy.mp4",
+    image: "/05-Deploy-desktop.mp4",
   },
 ] as const
 

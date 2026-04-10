@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import TextAnimation from "@/components/textAnimation"
 
-/* ----------------------- data ----------------------- */
 const VALUES = [
   {
     label: "Alignment",
@@ -14,7 +13,7 @@ const VALUES = [
   {
     label: "Understanding",
     body: `Work begins with understanding. Context, constraints, and decision-making logic are examined before execution takes place. This approach replaces assumptions with clarity and establishes a foundation on which structure and direction can be defined.`,
-    media: "/Pattern-10-02.mp4",
+    media: "/valuesMotion-desktop.mp4",
   },
   {
     label: "Systems",
@@ -40,8 +39,12 @@ export default function SectionTwo() {
   const mediaWrapRef = useRef<HTMLDivElement | null>(null)
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
 
+  // Tracks which video indices have had src assigned already
+  const loadedIndices = useRef<Set<number>>(new Set())
+
   const rafRef = useRef<number | null>(null)
   const lastTRef = useRef<number>(0)
+  const isVisibleRef = useRef(false)
 
   const [openIndex, setOpenIndex] = useState(0)
   const [animKey, setAnimKey] = useState(0)
@@ -50,20 +53,33 @@ export default function SectionTwo() {
   const yRef = useRef(0)
   const vRef = useRef(0)
 
-  const active = useMemo(() => VALUES[openIndex], [openIndex])
+  // Lazy-load + play video only when its index becomes active
   useEffect(() => {
     const activeItem = VALUES[openIndex]
     if (!isVideo(activeItem.media)) return
-  
+
     const video = videoRefs.current[openIndex]
     if (!video) return
-  
+
+    // Assign src the first time this index is activated
+    if (!loadedIndices.current.has(openIndex)) {
+      video.src = activeItem.media
+      loadedIndices.current.add(openIndex)
+    }
+
     video.currentTime = 0
     video.play().catch(() => {})
+
+    // Pause the previously active video if it's a video
+    VALUES.forEach((v, i) => {
+      if (i === openIndex) return
+      if (!isVideo(v.media)) return
+      const el = videoRefs.current[i]
+      if (el && !el.paused) el.pause()
+    })
   }, [openIndex])
 
-  
-
+  // Spring physics loop — paused when section is off-screen
   useEffect(() => {
     const isDesktop = window.matchMedia("(min-width: 1024px)").matches
     if (!isDesktop) return
@@ -72,12 +88,16 @@ export default function SectionTwo() {
     const mediaEl = mediaWrapRef.current
     if (!section || !mediaEl) return
 
-    
     const STIFFNESS = 55
     const DAMPING = 18
     const MAX_V = 2200
 
     const tick = (t: number) => {
+      if (!isVisibleRef.current) {
+        rafRef.current = requestAnimationFrame(tick)
+        return
+      }
+
       const dt = clamp((t - lastTRef.current) / 1000, 0, 0.05)
       lastTRef.current = t
 
@@ -86,10 +106,8 @@ export default function SectionTwo() {
       const target = targetYRef.current
 
       const a = (target - y) * STIFFNESS - v * DAMPING
-
       let vNext = v + a * dt
       vNext = clamp(vNext, -MAX_V, MAX_V)
-
       const yNext = y + vNext * dt
 
       yRef.current = yNext
@@ -100,6 +118,8 @@ export default function SectionTwo() {
     }
 
     const onMove = (e: MouseEvent) => {
+      if (!isVisibleRef.current) return
+
       const root = desktopSectionRef.current
       const media = mediaWrapRef.current
       if (!root || !media) return
@@ -113,7 +133,7 @@ export default function SectionTwo() {
       const titlesBottom = last.bottom
 
       const insideY = e.clientY >= titlesTop && e.clientY <= titlesBottom
-      if (!insideY) return // no reset
+      if (!insideY) return
 
       const bandH = Math.max(1, titlesBottom - titlesTop)
       const tt = clamp((e.clientY - titlesTop) / bandH, 0, 1)
@@ -134,11 +154,21 @@ export default function SectionTwo() {
       targetYRef.current = lerp(minY, maxY, tt)
     }
 
+    // Pause RAF when section leaves viewport
+    const observer = new IntersectionObserver(
+      (entries) => {
+        isVisibleRef.current = entries[0]?.isIntersecting ?? false
+      },
+      { threshold: 0 }
+    )
+    observer.observe(section)
+
     lastTRef.current = performance.now()
     rafRef.current = requestAnimationFrame(tick)
     window.addEventListener("mousemove", onMove, { passive: true })
 
     return () => {
+      observer.disconnect()
       window.removeEventListener("mousemove", onMove)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = null
@@ -147,25 +177,31 @@ export default function SectionTwo() {
 
   return (
     <main>
-      {/* ===================== MOBILE + MD (NO MICRO-ANIMATIONS) ===================== */}
+      {/* ===================== MOBILE + MD ===================== */}
       <div className="lg:hidden">
         <section className="w-full flex justify-center bg-white">
           <div className="w-[91.66%] py-[clamp(128px,8vw,256px)]">
-            <div className="text-[clamp(18px,4vw,24px)]  py-[clamp(36px,4vw,64px)]">(Values)</div>
+            <div className="text-[clamp(18px,4vw,24px)] py-[clamp(36px,4vw,64px)]">(Values)</div>
 
             <div className="pb-[clamp(32px,4vw,48px)]">
               {VALUES.map((v) => (
                 <article key={v.label}>
-                  <div className="text-[clamp(48px,4vw,96px)] text-[#1A1C24]">
-                    {v.label}
-                  </div>
+                  <div className="text-[clamp(48px,4vw,96px)] text-[#1A1C24]">{v.label}</div>
 
                   <div className="pt-[clamp(18px,4vw,24px)] pb-[clamp(64px,4vw,128px)]">
                     <div className="relative w-full aspect-[1.5] rounded-[clamp(14px,4vw,18px)] overflow-hidden">
                       {isVideo(v.media) ? (
-                        <video src={v.media} className="h-full w-full object-cover" autoPlay muted loop playsInline />
+                        <video
+                          src={v.media}
+                          className="h-full w-full object-cover"
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          preload="metadata"
+                        />
                       ) : (
-                        <Image src={v.media} alt={v.label} fill className="object-cover" />
+                        <Image src={v.media} alt={v.label} fill className="object-cover" sizes="91vw" />
                       )}
                     </div>
 
@@ -186,10 +222,11 @@ export default function SectionTwo() {
           <div className="w-full flex justify-center">
             <div className="w-[91.66%] pt-[8vw] pb-[6vw]">
               <div className="grid grid-cols-12 gap-[clamp(36px,4vw,64px)]">
+
                 {/* LEFT */}
                 <div className="col-span-6">
                   <div className="min-h-[clamp(520px,50vh,760px)] pb-[clamp(48px,6vh,96px)]">
-                    <div className="text-[clamp(18px,4vw,24px)] ">(Values)</div>
+                    <div className="text-[clamp(18px,4vw,24px)]">(Values)</div>
 
                     <div className="mt-[clamp(12px,1.4vw,18px)]">
                       {VALUES.map((v, i) => {
@@ -210,7 +247,7 @@ export default function SectionTwo() {
                                 data-title
                                 className={[
                                   "cursor-pointer",
-                                  "text-[clamp(48px,4vw,96px)]  leading-[1.2]",
+                                  "text-[clamp(48px,4vw,96px)] leading-[1.2]",
                                   "transition-all duration-2000 ease-[cubic-bezier(.16,1,.3,1)]",
                                   isOpen ? "text-[#333438]" : "text-[#6E7179]",
                                   "group-hover:text-[#333438]",
@@ -239,13 +276,12 @@ export default function SectionTwo() {
                                       <TextAnimation
                                         key={`${animKey}-${v.label}`}
                                         text={v.body}
-                                        className=" text-[clamp(18px,2vw,20px)] 2xl:text-[clamp(20px,2vw,24px)]  text-[#6E7179]"
+                                        className="text-[clamp(18px,2vw,20px)] 2xl:text-[clamp(20px,2vw,24px)] text-[#6E7179]"
                                         speed="Body"
                                       />
                                     ) : (
-                                      <div className=" text-[#6E7179]">{v.body}</div>
+                                      <div className="text-[#6E7179]">{v.body}</div>
                                     )}
-
                                     <div className="h-[clamp(48px,4vw,84px)]" />
                                   </div>
                                 </div>
@@ -263,12 +299,7 @@ export default function SectionTwo() {
                   <div className="w-full flex justify-end">
                     <div
                       ref={mediaWrapRef}
-                      className={[
-                        "will-change-transform",
-                        "overflow-hidden",
-                        "rounded-[clamp(14px,2vw,20px)]",
-                        "w-[75%]",
-                      ].join(" ")}
+                      className="will-change-transform overflow-hidden rounded-[clamp(14px,2vw,20px)] w-[75%]"
                       style={{ transform: "translate3d(0,0px,0)" }}
                     >
                       <div className="relative w-full aspect-[1.65]">
@@ -283,24 +314,21 @@ export default function SectionTwo() {
                           >
                             {isVideo(v.media) ? (
                               <video
-                                ref={(el) => {
-                                  videoRefs.current[i] = el
-                                }}
-                                src={v.media}
+                                ref={(el) => { videoRefs.current[i] = el }}
                                 className="h-full w-full object-cover"
                                 muted
                                 loop
                                 playsInline
-                                preload="auto"
+                                preload="none"
                               />
                             ) : (
                               <Image
-                                key={v.media}
                                 src={v.media}
                                 alt={v.label}
                                 fill
                                 className="object-cover"
-                                priority={i === openIndex}
+                                sizes="(max-width: 1280px) 38vw, 34vw"
+                                priority={i === 0}
                               />
                             )}
                           </div>
@@ -309,9 +337,8 @@ export default function SectionTwo() {
                     </div>
                   </div>
                 </div>
-                {/* /RIGHT */}
-              </div>
 
+              </div>
               <div aria-hidden className="h-[clamp(64px,4vh,128px)]" />
             </div>
           </div>

@@ -292,7 +292,7 @@ export default function Home() {
               <div className="mt-[clamp(36px,4svh,64px)] w-full overflow-hidden rounded-[clamp(10px,4vw,20px)] aspect-[1.788]">
                 <video
                   className="h-full w-full object-cover"
-                  src="/MVideoHome.mp4"
+                  src="/HomeVideo-desktop.mp4"
                   autoPlay
                   loop
                   muted
@@ -340,7 +340,7 @@ export default function Home() {
                 <video
                   ref={videoDesktopRef}
                   className="h-full w-full object-cover"
-                  src="/MVideoHome.mp4"
+                  src="/HomeVideo-mobile.mp4"
                   autoPlay
                   loop
                   muted
@@ -371,7 +371,7 @@ export default function Home() {
                 <video
                   ref={workflowVideoMobileRef}
                   className="h-full w-full object-cover"
-                  src="/Vacko-moodboard.mp4"
+                  src="/moobboard-mobile.mp4"
                   autoPlay
                   loop
                   muted
@@ -508,7 +508,7 @@ export default function Home() {
                   <video
                     ref={workflowVideoDesktopRef}
                     className="h-full w-full object-cover"
-                    src="/Vacko-moodboard.mp4"
+                    src="/moobboard-desktop.mp4"
                     autoPlay
                     loop
                     muted

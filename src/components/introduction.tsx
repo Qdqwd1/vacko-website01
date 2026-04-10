@@ -48,7 +48,7 @@ export default function IntroSection({
             
             <div className="mt-[clamp(32px,4vw,64px)] md:mt-0 md:absolute md:right-0 md:top-0">
               <span className="text-[#1A1C24] text-[clamp(18px,2vw,24px)]">({pageTag})</span>
-            </div>
+            </div> 
           </div>
 
           

@@ -132,7 +132,7 @@ export default function Contact() {
             </div>
 
             <CopyField
-              label="Founder"
+              label="Business"
               value="ruslanvassiljev05@gmail.com"
             />
           </div>
